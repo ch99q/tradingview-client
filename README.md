@@ -629,9 +629,9 @@ This library is not officially affiliated with TradingView. Use at your own risk
 
 ## Support
 
-- 📖 [Documentation](https://github.com/ch99q/tradingview-client)
-- 🐛 [Issue Tracker](https://github.com/ch99q/tradingview-client/issues)
-- 💬 [Discussions](https://github.com/ch99q/tradingview-client/discussions)
+- 📖 [Documentation](https://github.com/ch99q/twc)
+- 🐛 [Issue Tracker](https://github.com/ch99q/twc/issues)
+- 💬 [Discussions](https://github.com/ch99q/twc/discussions)
 
 ---
 
