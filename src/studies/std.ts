@@ -1,0 +1,30 @@
+import { Chart, createStudy, Series, Session } from "../client.ts";
+
+const MARKET_CAP_SCRIPT = "bmI9Ks46_peJZ6rmazvCWrWhrO6wOUw==_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";
+
+const PRESETS = {
+  MARKET_CAP: {
+    text: MARKET_CAP_SCRIPT,
+    pineId: "STD;Fund_market_cap_basic",
+    pineVersion: "73.0",
+  }
+}
+
+export const createPresetStudy = (session: Session, chart: Chart, series: Series, presetName: keyof typeof PRESETS) => {
+  const preset = PRESETS[presetName];
+  if (!preset) {
+    throw new Error(`Preset study "${presetName}" not found.`);
+  }
+  return createStudy(session, chart, series, {
+    id: "Internal@tv-scripting-101!",
+    metadata: {
+      text: preset.text,
+      pineId: preset.pineId,
+      pineVersion: preset.pineVersion
+    },
+    parameters: [
+      { type: "symbol", value: "" },
+      { type: "text", value: "USD" },
+    ]
+  });
+}

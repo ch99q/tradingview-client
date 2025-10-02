@@ -125,30 +125,6 @@ export const rangeBarsStudy = (session: Session, chart: Chart, series: Series, r
 }
 
 /**
- * Spread
- * 
- * @param tickers - The tickers for the spread. Defaults to "".
- * @param expr - The expression for the spread. Defaults to "".
- * @param tz - The timezone. Defaults to "UTC".
- * @param session - The session. Defaults to "0000-0000".
- * @param calcVolumeRule - The volume calculation rule. Defaults to "sum".
- * @param volexpr - The volume expression. Defaults to "".
- */
-export const spreadStudy = (session: Session, chart: Chart, series: Series, tickers: string = "", expr: string = "", tz: string = "UTC", sessionTime: string = "0000-0000", calcVolumeRule: string = "sum", volexpr: string = "") => {
-  return createStudy(session, chart, series, {
-    id: "BarSetSpread@tv-basicstudies-251",
-    parameters: [
-      { type: "text", value: tickers }, // Tickers
-      { type: "text", value: expr }, // Expr
-      { type: "text", value: tz }, // Tz
-      { type: "text", value: sessionTime }, // Session
-      { type: "text", value: calcVolumeRule }, // CalcVolumeRule
-      { type: "text", value: volexpr } // Volexpr
-    ]
-  });
-}
-
-/**
  * Bollinger Bands %B
  * 
  * @param length - The period for the moving average. Defaults to 20.
@@ -341,24 +317,6 @@ export const choppinessIndexStudy = (session: Session, chart: Chart, series: Ser
 }
 
 /**
- * Compare
- * 
- * @param symbol - The symbol to compare. Defaults to "".
- * @param source - The source data for the study. Defaults to "close".
- * @param offset - The offset. Defaults to 0.
- */
-export const compareStudy = (session: Session, chart: Chart, series: Series, symbol: string = "", source: string = "close", offset: number = 0) => {
-  return createStudy(session, chart, series, {
-    id: "Compare@tv-basicstudies-251",
-    parameters: [
-      { type: "symbol", value: symbol }, // Symbol
-      { type: "text", value: source }, // Source
-      { type: "integer", value: offset } // Offset
-    ]
-  });
-}
-
-/**
  * Correlation Coefficient
  * 
  * @param symbol - The symbol to correlate with. Defaults to "GOOG".
@@ -372,26 +330,6 @@ export const correlationCoefficientStudy = (session: Session, chart: Chart, seri
       { type: "symbol", value: symbol }, // Symbol
       { type: "text", value: source }, // Source
       { type: "integer", value: length } // Length
-    ]
-  });
-}
-
-/**
- * Currency Converter
- * 
- * @param symbol - The symbol to convert to. Defaults to "".
- * @param rate - The conversion rate. Defaults to "".
- * @param useRtRate - Whether to use real-time rate. Defaults to false.
- * @param coeff - The coefficient. Defaults to 1.0.
- */
-export const currencyConverterStudy = (session: Session, chart: Chart, series: Series, symbol: string = "", rate: string = "", useRtRate: boolean = false, coeff: number = 1.0) => {
-  return createStudy(session, chart, series, {
-    id: "CurrencyConverter@tv-basicstudies-251",
-    parameters: [
-      { type: "symbol", value: symbol }, // Symbol
-      { type: "text", value: rate }, // Rate
-      { type: "bool", value: useRtRate }, // UseRTRate
-      { type: "float", value: coeff } // Coeff
     ]
   });
 }
@@ -646,30 +584,6 @@ export const linearRegressionStudy = (session: Session, chart: Chart, series: Se
       { type: "bool", value: useLowerDeviation }, // Use Lower Deviation
       { type: "integer", value: count }, // Count
       { type: "source", value: source } // Source
-    ]
-  });
-}
-
-/**
- * Long Short Position
- * 
- * @param startTime - The start time. Defaults to 0.
- * @param endTime - The end time. Defaults to 0.
- * @param entryPrice - The entry price. Defaults to 0.0.
- * @param targetPrice - The target price. Defaults to 0.0.
- * @param stopPrice - The stop price. Defaults to 0.0.
- * @param baseCurrency - The base currency. Defaults to "NONE".
- */
-export const longShortPositionStudy = (session: Session, chart: Chart, series: Series, startTime: number = 0, endTime: number = 0, entryPrice: number = 0.0, targetPrice: number = 0.0, stopPrice: number = 0.0, baseCurrency: string = "NONE") => {
-  return createStudy(session, chart, series, {
-    id: "LongShortPosition@tv-basicstudies-251",
-    parameters: [
-      { type: "time", value: startTime }, // Start_time
-      { type: "time", value: endTime }, // End_time
-      { type: "float", value: entryPrice }, // Entry_price
-      { type: "float", value: targetPrice }, // Target_price
-      { type: "float", value: stopPrice }, // Stop_price
-      { type: "text", value: baseCurrency } // Base Currency
     ]
   });
 }
@@ -975,32 +889,6 @@ export const rsiStudy = (session: Session, chart: Chart, series: Series, length:
 }
 
 /**
- * Regression Trend
- * 
- * @param upperDeviation - The upper deviation. Defaults to 2.0.
- * @param lowerDeviation - The lower deviation. Defaults to -2.0.
- * @param useUpperDeviation - Whether to use upper deviation. Defaults to true.
- * @param useLowerDeviation - Whether to use lower deviation. Defaults to true.
- * @param firstBarTime - The first bar time. Defaults to 0.
- * @param lastBarTime - The last bar time. Defaults to 0.
- * @param source - The source data for the study. Defaults to "close".
- */
-export const regressionTrendStudy = (session: Session, chart: Chart, series: Series, upperDeviation: number = 2.0, lowerDeviation: number = -2.0, useUpperDeviation: boolean = true, useLowerDeviation: boolean = true, firstBarTime: number = 0, lastBarTime: number = 0, source: string = "close") => {
-  return createStudy(session, chart, series, {
-    id: "RegressionTrend@tv-basicstudies-251",
-    parameters: [
-      { type: "float", value: upperDeviation }, // Upper Deviation
-      { type: "float", value: lowerDeviation }, // Lower Deviation
-      { type: "bool", value: useUpperDeviation }, // Use Upper Deviation
-      { type: "bool", value: useLowerDeviation }, // Use Lower Deviation
-      { type: "time", value: firstBarTime }, // First bar time
-      { type: "time", value: lastBarTime }, // Last bar time
-      { type: "source", value: source } // Source
-    ]
-  });
-}
-
-/**
  * SMI Ergodic Indicator
  * 
  * @param longPeriod - The long period. Defaults to 20.
@@ -1032,20 +920,6 @@ export const smiErgodicOscillatorStudy = (session: Session, chart: Chart, series
       { type: "integer", value: longPeriod }, // Long period
       { type: "integer", value: shortPeriod }, // Short period
       { type: "integer", value: signalLinePeriod } // Signal line period
-    ]
-  });
-}
-
-/**
- * Seasonals
- * 
- * @param config - The configuration. Defaults to "".
- */
-export const seasonalsStudy = (session: Session, chart: Chart, series: Series, config: string = "") => {
-  return createStudy(session, chart, series, {
-    id: "Seasonals@tv-basicstudies-251",
-    parameters: [
-      { type: "text", value: config } // Config
     ]
   });
 }
@@ -1240,36 +1114,6 @@ export const volumeProfileAnchoredStudy = (session: Session, chart: Chart, serie
       { type: "text", value: volume }, // Volume
       { type: "time", value: firstBarTime }, // First Bar Time
       { type: "integer", value: valueAreaVolume } // Value Area Volume
-    ]
-  });
-}
-
-/**
- * Volume Profile Fixed Range
- * 
- * @param mapRightBoundary - Whether to map right boundary. Defaults to false.
- * @param rowsLayout - The rows layout. Defaults to "Number Of Rows".
- * @param rowSize - The row size. Defaults to 24.
- * @param volume - The volume type. Defaults to "Up/Down".
- * @param firstBarTime - The first bar time. Defaults to 0.
- * @param lastBarTime - The last bar time. Defaults to 0.
- * @param valueAreaVolume - The value area volume. Defaults to 70.
- * @param subscribeRealtime - Whether to subscribe to realtime. Defaults to true.
- * @param extendToRight - Whether to extend to right. Defaults to false.
- */
-export const volumeProfileFixedRangeStudy = (session: Session, chart: Chart, series: Series, mapRightBoundary: boolean = false, rowsLayout: string = "Number Of Rows", rowSize: number = 24, volume: string = "Up/Down", firstBarTime: number = 0, lastBarTime: number = 0, valueAreaVolume: number = 70, subscribeRealtime: boolean = true, extendToRight: boolean = false) => {
-  return createStudy(session, chart, series, {
-    id: "VbPFixed@tv-basicstudies-251",
-    parameters: [
-      { type: "bool", value: mapRightBoundary }, // mapRightBoundary
-      { type: "text", value: rowsLayout }, // Rows Layout
-      { type: "integer", value: rowSize }, // Row Size
-      { type: "text", value: volume }, // Volume
-      { type: "time", value: firstBarTime }, // First Bar Time
-      { type: "time", value: lastBarTime }, // Last Bar Time
-      { type: "integer", value: valueAreaVolume }, // Value Area Volume
-      { type: "bool", value: subscribeRealtime }, // SubscribeRealtime
-      { type: "bool", value: extendToRight } // Extend Right
     ]
   });
 }

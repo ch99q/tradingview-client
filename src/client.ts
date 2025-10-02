@@ -1,11 +1,64 @@
-// deno-lint-ignore-file no-explicit-any
 /**
- * @fileoverview TradingView WebSocket Client
- * 
- * A comprehensive TypeScript client for connecting to TradingView's real-time data feeds
- * via WebSocket.
+ * TradingView WebSocket Client
+ * Client for TradingView real-time data feeds
  */
-import EventEmitter from "node:events";
+
+let EventEmitter: any;
+let WebSocketImpl: any;
+
+// EventEmitter implementation for cross-platform compatibility
+class UniversalEventEmitter {
+  private events = new Map<string, Set<Function>>();
+  
+  on(event: string, listener: Function) {
+    if (!this.events.has(event)) {
+      this.events.set(event, new Set());
+    }
+    this.events.get(event)!.add(listener);
+    return this;
+  }
+  
+  off(event: string, listener: Function) {
+    this.events.get(event)?.delete(listener);
+    return this;
+  }
+  
+  removeListener(event: string, listener: Function) {
+    return this.off(event, listener);
+  }
+  
+  emit(event: string, ...args: any[]) {
+    const listeners = this.events.get(event);
+    if (listeners) {
+      listeners.forEach(listener => listener(...args));
+    }
+    return listeners ? listeners.size > 0 : false;
+  }
+  
+  once(event: string, listener: Function) {
+    const onceWrapper = (...args: any[]) => {
+      this.off(event, onceWrapper);
+      listener(...args);
+    };
+    return this.on(event, onceWrapper);
+  }
+  
+  listenerCount(event: string): number {
+    return this.events.get(event)?.size || 0;
+  }
+  
+  eventNames(): string[] {
+    return Array.from(this.events.keys());
+  }
+}
+
+function getWebSocketClass(): typeof WebSocket {
+  if (typeof globalThis !== 'undefined' && 'WebSocket' in globalThis) {
+    return globalThis.WebSocket;
+  }
+  
+  return WebSocket;
+}
 
 const HOST = "wss://data.tradingview.com/socket.io/websocket?&type=chart";
 const PROHOST = "wss://prodata.tradingview.com/socket.io/websocket?&type=chart";
@@ -16,12 +69,10 @@ export type Message = Array<any> | Record<string, any> | string;
 
 export type Session = {
   protocol: Record<string, unknown>;
-  socket: WebSocketStream;
-  writer: WritableStreamDefaultWriter<string>;
-  reader: ReadableStreamDefaultReader<string | Uint8Array>;
+  socket: WebSocket;
   send: (event: string, payload: Message) => Promise<void>;
   close: () => Promise<void>;
-} & EventEmitter;
+} & UniversalEventEmitter;
 
 export class ProtocolError extends Error {
   constructor(message: string) {
@@ -99,35 +150,48 @@ export class StudyError extends Error {
   }
 }
 
+function createWebSocket(url: string, options?: { headers?: Record<string, string> }): WebSocket {
+  // Detect browser vs server environment
+  const isBrowser = typeof globalThis !== 'undefined' && 
+                   typeof (globalThis as any).window !== 'undefined' && 
+                   typeof (globalThis as any).document !== 'undefined';
+  
+  if (isBrowser) {
+    return new globalThis.WebSocket(url);
+  } else {
+    // Use ws package for server environments
+    try {
+      const WebSocketNode = require('ws');
+      return new WebSocketNode(url, {
+        headers: {
+          "Origin": "https://www.tradingview.com",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          "Cache-Control": "no-cache",
+          "Pragma": "no-cache",
+          ...options?.headers
+        },
+        followRedirects: true
+      });
+    } catch (error) {
+      throw new Error(
+        "WebSocket implementation not found. In Node.js/Bun environment, please install 'ws' package: npm install ws @types/ws"
+      );
+    }
+  }
+}
+
 export async function createSession(token?: string, verbose?: boolean): Promise<Session> {
-  const emitter = new EventEmitter();
+  const emitter = new UniversalEventEmitter();
 
   let closed = false;
   let protocol: any = undefined;
   let interval: ReturnType<typeof setInterval> | undefined;
 
-  let socket: WebSocketStream;
+  let socket: WebSocket;
   try {
-    socket = new WebSocketStream(token ? PROHOST : HOST, {
-      headers: {
-        "Origin": "https://www.tradingview.com",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "Accept-Encoding": "gzip, deflate, br, zstd",
-      },
-    });
+    socket = createWebSocket(token ? PROHOST : HOST);
   } catch (err) {
-    throw new Error("WebSocket connection failed: " + (err instanceof Error ? err.message : String(err)));
-  }
-
-  let reader: ReadableStreamDefaultReader<string | Uint8Array>;
-  let writer: WritableStreamDefaultWriter<string>;
-
-  try {
-    const { readable, writable } = await socket.opened;
-    writer = writable.getWriter();
-    reader = readable.getReader();
-  } catch (err) {
-    throw new Error("WebSocket handshake failed: " + (err instanceof Error ? err.message : String(err)));
+    throw new Error("WebSocket creation failed: " + (err instanceof Error ? err.message : String(err)));
   }
 
   const closeSession = async () => {
@@ -135,74 +199,107 @@ export async function createSession(token?: string, verbose?: boolean): Promise<
     closed = true;
     if (interval) clearInterval(interval);
 
-    try { await writer.close(); } catch { }
-    try { writer.releaseLock(); } catch { }
-    try { await reader.cancel(); } catch { }
-    try { reader.releaseLock(); } catch { }
-    try { await socket.close(); } catch { }
+    try { 
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+        socket.close(); 
+      }
+    } catch { }
     emitter.emit("close");
   };
+  await new Promise<void>((resolve, reject) => {
+    if (socket.readyState === WebSocket.OPEN) {
+      resolve();
+      return;
+    }
 
-  // Background reader task
-  (async () => {
-    try {
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break; // socket closed by remote
+    const timeout = setTimeout(() => {
+      reject(new Error("WebSocket connection timeout"));
+    }, 10000);
 
-        const text = typeof value === "string"
-          ? value
-          : value instanceof Uint8Array
-            ? new TextDecoder().decode(value)
-            : "";
+    const onOpen = () => {
+      clearTimeout(timeout);
+      resolve();
+    };
 
-        const packets = text.split("~m~").filter(Boolean).reduce((acc, packet, i) => {
-          if (i % 2 === 0) acc.push("~m~" + packet);
-          else acc[acc.length - 1] += "~m~" + packet;
-          return acc;
-        }, [] as string[]);
+    const onError = (error: any) => {
+      clearTimeout(timeout);
+      reject(new Error("WebSocket connection failed: " + (error?.message || String(error))));
+    };
 
-        for (const raw of packets) {
-          if (raw.includes("~m~~h~")) {
-            const m = raw.match(/~m~(\d+)~m~~h~(\d+)/);
-            if (m) {
-              await writer.write(`~m~${m[1]}~m~~h~${m[2]}`);
-            }
-          } else if (raw.includes('~m~{"session_id"')) {
-            const m = raw.match(/~m~(\d+)~m~(.+)/);
-            if (m) {
-              protocol = JSON.parse(m[2]);
-              emitter.emit("protocol", protocol);
-            }
-          } else {
-            // Normal packet
-            const m = raw.match(/~m~(\d+)~m~(.+)/);
-            if (!m) continue;
-            const { m: event, p: payload } = JSON.parse(m[2]);
-            if (!protocol) { // Ensure protocol is set
-              protocol = {};
-            }
-            if (!closed && protocol) {
-              emitter.emit("open", protocol);
-            }
-            emitter.emit("message", { event, payload });
-            if (verbose) console.log(`[RECEIVED] [${event}]`, payload);
-            if (event && typeof event === "string" && event.includes("error")) {
-              emitter.emit("error", event, payload);
-            } else {
-              emitter.emit(event, payload);
-            }
-          }
+    if (typeof (socket as any).on === 'function') {
+      (socket as any).on('open', onOpen);
+      (socket as any).on('error', onError);
+    } else {
+      socket.addEventListener('open', onOpen);
+      socket.addEventListener('error', onError);
+    }
+  });
+
+  const messageHandler = (event: any) => {
+    if (closed) return;
+    
+    const text = typeof event.data === 'string' ? event.data : 
+                 typeof event === 'string' ? event : 
+                 String(event.data || event);
+    
+    const packets = text.split("~m~").filter(Boolean).reduce((acc: string[], packet: string, i: number) => {
+      if (i % 2 === 0) acc.push("~m~" + packet);
+      else acc[acc.length - 1] += "~m~" + packet;
+      return acc;
+    }, [] as string[]);
+
+    for (const raw of packets) {
+      if (raw.includes("~m~~h~")) {
+        const m = raw.match(/~m~(\d+)~m~~h~(\d+)/);
+        if (m) {
+          send("heartbeat", `~m~${m[1]}~m~~h~${m[2]}`);
+        }
+      } else if (raw.includes('~m~{"session_id"')) {
+        const m = raw.match(/~m~(\d+)~m~(.+)/);
+        if (m) {
+          protocol = JSON.parse(m[2]);
+          emitter.emit("protocol", protocol);
+        }
+      } else {
+        const m = raw.match(/~m~(\d+)~m~(.+)/);
+        if (!m) continue;
+        const { m: event, p: payload } = JSON.parse(m[2]);
+        if (!protocol) {
+          protocol = {};
+        }
+        if (!closed && protocol) {
+          emitter.emit("open", protocol);
+        }
+        emitter.emit("message", { event, payload });
+        if (verbose) console.log(`[RECEIVED] [${event}]`, payload);
+        if (event && typeof event === "string" && event.includes("error")) {
+          emitter.emit("error", event, payload);
+        } else {
+          emitter.emit(event, payload);
         }
       }
-    } catch (err) {
-      if (!closed) {
-        emitter.emit("error", err);
-      }
-    } finally {
-      closeSession();
     }
-  })();
+  };
+
+  const errorHandler = (error: any) => {
+    if (!closed) {
+      emitter.emit("error", error);
+    }
+  };
+
+  const closeHandler = () => {
+    closeSession();
+  };
+
+  if (socket.addEventListener) {
+    socket.addEventListener('message', messageHandler);
+    socket.addEventListener('error', errorHandler);
+    socket.addEventListener('close', closeHandler);
+  } else {
+    (socket as any).on('message', messageHandler);
+    (socket as any).on('error', errorHandler);
+    (socket as any).on('close', closeHandler);
+  }
 
   // Wait for protocol negotiation
   await new Promise<void>((resolve, reject) => {
@@ -219,12 +316,24 @@ export async function createSession(token?: string, verbose?: boolean): Promise<
     emitter.once("error", onError);
   });
 
-  // Writer wrapper
-  const send = async (event: string, payload: Message): Promise<void> => {
-    if (closed) throw new Error("Cannot send on closed session");
-    const message = JSON.stringify({ m: event, p: payload });
-    if (verbose) console.log(`[SEND] ${event}`, payload);
-    await writer.write(`~m~${message.length}~m~${message}`);
+  // Send function
+  const send = async (event: string, payload: Message | string): Promise<void> => {
+    if (closed || socket.readyState !== WebSocket.OPEN) {
+      throw new Error("Cannot send on closed session");
+    }
+    
+    let message: string;
+    if (typeof payload === 'string') {
+      // For heartbeat messages, send directly
+      message = payload;
+    } else {
+      // For regular messages, format as JSON
+      const jsonMessage = JSON.stringify({ m: event, p: payload });
+      message = `~m~${jsonMessage.length}~m~${jsonMessage}`;
+      if (verbose) console.log(`[SEND] ${event}`, payload);
+    }
+    
+    socket.send(message);
   };
 
   // Authenticate and set locale
@@ -242,8 +351,6 @@ export async function createSession(token?: string, verbose?: boolean): Promise<
   Object.assign(emitter, {
     protocol,
     socket,
-    reader,
-    writer,
     send,
     close: closeSession,
   });
@@ -251,7 +358,7 @@ export async function createSession(token?: string, verbose?: boolean): Promise<
   return emitter as Session;
 }
 
-type ResolveSymbol = {
+export type ResolveSymbol = {
   id: string;
   pro_name: string;
   full_name: string;
@@ -412,7 +519,8 @@ export function request(session: Session, event: string, payload: Message): Prom
         case 'study_error': {
           if (event !== 'create_study') return;
           if (payload[0] !== error[0] || payload[1] !== error[1] || (Array.isArray(payload) ? payload[3] + "_" + payload[2] : undefined) !== error[2]) return;
-          reject(new StudyError(payload[0], payload[1], payload[2], error[3], error[4], error[5]));
+          const message = typeof error[3].error === 'string' ? error[3].error.replace("{symbol}", payload[1]) : JSON.stringify(error[3]);
+          reject(new StudyError(payload[0], payload[1], payload[2], message, error[4], error[5]));
           break;
         }
         case "protocol_error": {
@@ -859,7 +967,7 @@ export function createScript(session: Session, chart: Chart, series: Series, scr
   })
 }
 
-interface Quote {
+export interface Quote {
   id: string;
   symbol: string;
   exchange: string;

@@ -1,4 +1,3 @@
-// deno-lint-ignore-file no-explicit-any
 /**
  * TradingView Screener Client
  * A comprehensive TypeScript client for TradingView's screener API
@@ -757,7 +756,7 @@ export class ScreenerQuery {
       throw new Error(`Screener API error: ${response.status} ${response.statusText}`);
     }
 
-    return await response.json();
+    return await response.json() as ScreenerResult;
   }
 
   /**
