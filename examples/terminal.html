@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MARKET TERMINAL</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Courier New', 'Consolas', monospace;
+      background: #000000;
+      color: #cccccc;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .container {
+      max-width: 100vw;
+      height: 100vh;
+      margin: 0;
+      display: grid;
+      grid-template-columns: 400px 1fr;
+      grid-template-rows: auto auto auto 1fr;
+      padding: 10px;
+      gap: 10px;
+    }
+
+    .header {
+      grid-column: 1 / -1;
+      background: #1a1a1a;
+      border: 2px solid #666666;
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-title {
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: 3px;
+    }
+
+    .header-status {
+      font-size: 11px;
+      color: #999999;
+    }
+
+    .controls {
+      grid-column: 1 / -1;
+      background: #1a1a1a;
+      border: 2px solid #666666;
+      padding: 15px;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+    }
+
+    input, select, button {
+      padding: 10px;
+      background: #2a2a2a;
+      border: 1px solid #666666;
+      color: #cccccc;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      background: #333333;
+      box-shadow: 0 0 10px #666666;
+    }
+
+    #timeframe {
+      margin-right: auto;
+    }
+
+    button {
+      cursor: pointer;
+      font-weight: bold;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    button:hover:not(:disabled) {
+      background: #ffffff;
+      color: #000000;
+      box-shadow: 0 0 15px #666666;
+    }
+
+    button:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    button::before {
+      content: '[ ';
+    }
+
+    button::after {
+      content: ' ]';
+    }
+
+    .data-grid {
+      grid-column: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 8px;
+      align-content: start;
+      max-height: 150px;
+    }
+
+    .data-block {
+      background: #1a1a1a;
+      border: 2px solid #666666;
+      padding: 10px;
+      position: relative;
+      min-height: 60px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .data-block::before {
+      content: attr(data-label);
+      position: absolute;
+      top: -10px;
+      left: 10px;
+      background: #000000;
+      padding: 0 8px;
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: #999999;
+    }
+
+    .data-value {
+      font-size: 18px;
+      font-weight: bold;
+      margin-top: 5px;
+      font-family: 'Courier New', monospace;
+      word-break: break-all;
+      line-height: 1.2;
+    }
+
+    .chart-section {
+      grid-column: 2;
+      grid-row: 3 / 5;
+      background: #000000;
+      border: 2px solid #666666;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .chart-section::before {
+      content: 'CHART DATA';
+      position: absolute;
+      top: -10px;
+      left: 20px;
+      background: #000000;
+      padding: 0 8px;
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: #999999;
+      z-index: 1;
+    }
+
+    #chart {
+      width: 100%;
+      height: 100%;
+    }
+
+    .log-section {
+      grid-column: 1;
+      grid-row: 4;
+      background: #1a1a1a;
+      border: 2px solid #666666;
+      padding: 15px;
+      overflow-y: auto;
+      position: relative;
+      font-size: 11px;
+      min-height: 0;
+      height: 100%;
+    }
+
+    .log-section::before {
+      content: 'SYSTEM LOG';
+      position: absolute;
+      top: -10px;
+      left: 20px;
+      background: #000000;
+      padding: 0 8px;
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: #999999;
+    }
+
+    .log-section::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .log-section::-webkit-scrollbar-track {
+      background: #2a2a2a;
+    }
+
+    .log-section::-webkit-scrollbar-thumb {
+      background: #666666;
+    }
+
+    .status-line {
+      padding: 3px 0;
+      font-family: 'Courier New', monospace;
+    }
+
+    .status-line::before {
+      content: '> ';
+      color: #999999;
+    }
+
+    .status-line.error {
+      color: #ef4444;
+    }
+
+    .status-line.success {
+      color: #999999;
+    }
+
+    .status-line.info {
+      color: #999999;
+    }
+
+    .loading {
+      display: none;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0.3; }
+    }
+
+    .grid-overlay {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="grid-overlay"></div>
+  <div class="container">
+    <div class="header">
+      <div class="header-title">MARKET TERMINAL</div>
+      <div class="header-status" id="header-status">SYSTEM READY</div>
+    </div>
+
+    <div class="controls">
+      <input type="text" id="symbol" placeholder="Symbol" value="BTCUSD">
+      <input type="text" id="exchange" placeholder="Exchange" value="BINANCE">
+      <select id="timeframe">
+        <option value="1" selected>1 MIN</option>
+        <option value="5">5 MIN</option>
+        <option value="15">15 MIN</option>
+        <option value="60">1 HOUR</option>
+        <option value="1D">1 DAY</option>
+        <option value="1W">1 WEEK</option>
+      </select>
+      <button id="startBtn">ENGAGE</button>
+      <button id="stopBtn" disabled>ABORT</button>
+    </div>
+
+    <div class="data-grid">
+      <div class="data-block" data-label="PRICE">
+        <div class="data-value" id="price">--</div>
+      </div>
+      <div class="data-block" data-label="RSI">
+        <div class="data-value" id="rsi">--</div>
+      </div>
+      <div class="data-block" data-label="SMA">
+        <div class="data-value" id="sma">--</div>
+      </div>
+      <div class="data-block" data-label="VOLUME">
+        <div class="data-value" id="volume">--</div>
+      </div>
+    </div>
+
+    <div class="chart-section">
+      <div id="chart"></div>
+    </div>
+
+    <div class="log-section" id="status"></div>
+  </div>
+
+  <script type="module">
+    import { createChart } from 'https://esm.sh/lightweight-charts@4.1.3';
+    import { createSession, createChart as createTWChart, createSeries } from 'https://esm.sh/@ch99q/twc@0.1.1';
+    import { volumeStudy, smaStudy, rsiStudy } from 'https://esm.sh/@ch99q/twc@0.1.1/studies';
+
+    // Configuration
+    const CONFIG = {
+      RSI_PERIOD: 14,
+      SMA_PERIOD: 20,
+      HISTORY_BARS: 300,
+      CHART_COLORS: {
+        background: '#000000',
+        text: '#999999',
+        grid: '#1a1a1a',
+        border: '#666666',
+        bullish: '#22c55e',
+        bearish: '#ef4444',
+        sma: '#f59e0b'
+      }
+    };
+
+    // Application state
+    const state = {
+      session: null,
+      twChart: null,
+      series: null,
+      studies: {
+        rsi: null,
+        sma: null,
+        volume: null
+      },
+      chart: null,
+      chartSeries: {
+        candlestick: null,
+        sma: null
+      }
+    };
+
+    // DOM references
+    const elements = {
+      symbol: document.getElementById('symbol'),
+      exchange: document.getElementById('exchange'),
+      timeframe: document.getElementById('timeframe'),
+      startBtn: document.getElementById('startBtn'),
+      stopBtn: document.getElementById('stopBtn'),
+      status: document.getElementById('status'),
+      price: document.getElementById('price'),
+      volume: document.getElementById('volume'),
+      rsi: document.getElementById('rsi'),
+      sma: document.getElementById('sma'),
+      headerStatus: document.getElementById('header-status')
+    };
+
+    // Chart initialization
+    function initializeChart() {
+      const container = document.getElementById('chart');
+      state.chart = createChart(container, {
+        layout: { background: { color: CONFIG.CHART_COLORS.background }, textColor: CONFIG.CHART_COLORS.text },
+        grid: { vertLines: { color: CONFIG.CHART_COLORS.grid }, horzLines: { color: CONFIG.CHART_COLORS.grid } },
+        width: container.clientWidth,
+        height: container.clientHeight,
+        timeScale: { timeVisible: true, secondsVisible: false, borderColor: CONFIG.CHART_COLORS.border },
+        rightPriceScale: { borderColor: CONFIG.CHART_COLORS.border }
+      });
+
+      state.chartSeries.candlestick = state.chart.addCandlestickSeries({
+        upColor: CONFIG.CHART_COLORS.bullish,
+        downColor: CONFIG.CHART_COLORS.bearish,
+        borderUpColor: CONFIG.CHART_COLORS.bullish,
+        borderDownColor: CONFIG.CHART_COLORS.bearish,
+        wickUpColor: CONFIG.CHART_COLORS.bullish,
+        wickDownColor: CONFIG.CHART_COLORS.bearish
+      });
+
+      state.chartSeries.sma = state.chart.addLineSeries({
+        color: CONFIG.CHART_COLORS.sma,
+        lineWidth: 2,
+        title: `SMA(${CONFIG.SMA_PERIOD})`
+      });
+
+      window.addEventListener('resize', () => {
+        state.chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+      });
+    }
+
+    // Utilities
+    const log = (message, type = 'info') => {
+      const line = document.createElement('div');
+      line.className = `status-line ${type}`;
+      line.textContent = `[${new Date().toLocaleTimeString('en-US', { hour12: false })}] ${message.toUpperCase()}`;
+      elements.status.appendChild(line);
+      elements.status.scrollTop = elements.status.scrollHeight;
+    };
+
+    const formatCurrency = (num) => new Intl.NumberFormat('en-US', {
+      style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2
+    }).format(num);
+
+    const formatVolume = (num) => {
+      const formatWithSuffix = (value, suffix) => formatCurrency(value).replace('.00', '') + suffix;
+      if (num >= 1e9) return formatWithSuffix(num / 1e9, 'B');
+      if (num >= 1e6) return formatWithSuffix(num / 1e6, 'M');
+      if (num >= 1e3) return formatWithSuffix(num / 1e3, 'K');
+      return formatCurrency(num);
+    };
+
+    const updateIndicators = (price) => {
+      elements.price.textContent = formatCurrency(price);
+      elements.headerStatus.textContent = 'STREAMING ACTIVE';
+
+      const getLatestValue = (study, index) => study?.history[study.history.length - 1]?.[index];
+
+      // Update volume (dollar volume = BTC volume * price)
+      const volume = getLatestValue(state.studies.volume, 3) || 0;
+      elements.volume.textContent = formatVolume(volume * price);
+
+      // Update RSI
+      const rsi = getLatestValue(state.studies.rsi, 1);
+      if (rsi !== undefined) elements.rsi.textContent = rsi.toFixed(2);
+
+      // Update SMA
+      const sma = getLatestValue(state.studies.sma, 1);
+      if (sma !== undefined) elements.sma.textContent = formatCurrency(sma);
+    };
+
+    const startStream = async () => {
+      try {
+        elements.startBtn.disabled = true;
+        elements.startBtn.textContent = 'INITIALIZING';
+        log('Establishing connection...', 'info');
+
+        // Initialize session and chart
+        state.session = await createSession();
+        log('Session established', 'success');
+
+        state.twChart = await createTWChart(state.session);
+        log('Chart initialized', 'success');
+
+        // Resolve symbol
+        const symbol = elements.symbol.value.trim().toUpperCase();
+        const exchange = elements.exchange.value.trim().toUpperCase();
+        log(`Resolving target: ${symbol}@${exchange}`, 'info');
+
+        const resolvedSymbol = await state.twChart.resolve(symbol, exchange);
+        log(`Target acquired: ${resolvedSymbol.description}`, 'success');
+
+        // Create series and studies
+        const timeframe = elements.timeframe.value;
+        log(`Fetching ${timeframe} interval data`, 'info');
+
+        state.series = await createSeries(state.session, state.twChart, resolvedSymbol, timeframe, CONFIG.HISTORY_BARS);
+        log(`Data loaded: ${state.series.history.length} candles`, 'success');
+
+        log('Initializing indicators', 'info');
+        state.studies.rsi = await rsiStudy(state.session, state.twChart, state.series, CONFIG.RSI_PERIOD);
+        state.studies.sma = await smaStudy(state.session, state.twChart, state.series, CONFIG.SMA_PERIOD);
+        state.studies.volume = await volumeStudy(state.session, state.twChart, state.series);
+        log(`Indicators online: RSI(${CONFIG.RSI_PERIOD}) SMA(${CONFIG.SMA_PERIOD}) VOLUME`, 'success');
+
+        // Plot historical data
+        const candleData = state.series.history.map(([time, open, high, low, close]) => ({
+          time: Math.floor(time), open, high, low, close
+        }));
+        state.chartSeries.candlestick.setData(candleData);
+
+        // Plot SMA data
+        if (state.studies.sma?.history.length > 0) {
+          const smaData = state.studies.sma.history
+            .filter(d => d?.[1] !== undefined)
+            .map(([time, value]) => ({ time: Math.floor(time), value }));
+          state.chartSeries.sma.setData(smaData);
+        }
+
+        // Initialize with latest data
+        if (state.series.history.length > 0) {
+          const latest = state.series.history[state.series.history.length - 1];
+          updateIndicators(latest[4]);
+        }
+
+        elements.startBtn.textContent = 'ENGAGE';
+        elements.stopBtn.disabled = false;
+        log('Stream engaged - monitoring active', 'success');
+
+        // Process real-time updates
+        (async () => {
+          try {
+            for await (const [time, open, high, low, close] of state.series.stream()) {
+              // Update chart
+              try {
+                state.chartSeries.candlestick.update({ time: Math.floor(time), open, high, low, close });
+                
+                const smaValue = state.studies.sma.history[state.studies.sma.history.length - 1]?.[1];
+                if (smaValue !== undefined) {
+                  state.chartSeries.sma.update({ time: Math.floor(time), value: smaValue });
+                }
+              } catch (error) {
+                // Chart updates may fail during rapid updates - continue processing
+              }
+
+              // Update indicators and log
+              updateIndicators(close);
+              const volume = state.studies.volume.history[state.studies.volume.history.length - 1]?.[3] || 0;
+              log(`${formatCurrency(close)} | Vol: ${formatVolume(volume * close)}`);
+            }
+          } catch (error) {
+            if (error.message !== 'Stream closed') log(`Stream error: ${error.message}`, 'error');
+          }
+        })();
+
+      } catch (error) {
+        log(`Error: ${error.message}`, 'error');
+        console.error(error);
+        elements.startBtn.textContent = 'ENGAGE';
+        elements.startBtn.disabled = false;
+        await cleanup();
+      }
+    };
+
+    const cleanup = async () => {
+      const safeClose = async (resource) => {
+        try { await resource?.close(); } catch (e) { /* ignore cleanup errors */ }
+      };
+
+      try {
+        await safeClose(state.studies.volume);
+        await safeClose(state.studies.rsi);
+        await safeClose(state.studies.sma);
+        await safeClose(state.series);
+        await safeClose(state.session);
+
+        // Reset state
+        Object.keys(state.studies).forEach(key => state.studies[key] = null);
+        state.series = state.twChart = state.session = null;
+
+        // Reset UI
+        elements.startBtn.disabled = false;
+        elements.startBtn.textContent = 'ENGAGE';
+        elements.stopBtn.disabled = true;
+        elements.headerStatus.textContent = 'SYSTEM READY';
+        
+        log('Stream aborted', 'info');
+      } catch (error) {
+        log(`Cleanup error: ${error.message}`, 'error');
+      }
+    };
+
+    // Initialize application
+    initializeChart();
+    elements.startBtn.addEventListener('click', startStream);
+    elements.stopBtn.addEventListener('click', cleanup);
+    log('System ready. Enter symbol and engage', 'info');
+  </script>
+</body>
+</html>
