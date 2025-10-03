@@ -10,8 +10,8 @@ A comprehensive TypeScript/JavaScript client for TradingView's real-time WebSock
 - 🚀 **Real-time WebSocket Connection** - Live market data streaming
 - 📈 **Chart Data Access** - Historical and real-time price data
 - 📊 **Technical Indicators** - Built-in support for popular indicators
-- � **Financial Data & Quotes** - Comprehensive financial reports and metrics
-- �🔍 **Advanced Screener** - Comprehensive stock screening capabilities  
+- 🔍 **Financial Data & Quotes** - Comprehensive financial reports and metrics
+- 🔍 **Advanced Screener** - Comprehensive stock screening capabilities  
 - 🌐 **Cross-Platform** - Works in browsers, Node.js, Bun, and Deno
 - 📝 **TypeScript Support** - Full type definitions included
 - 🎯 **Simple API** - Easy-to-use interface with Promise-based operations
