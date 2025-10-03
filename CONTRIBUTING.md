@@ -41,8 +41,8 @@ This project adheres to a code of conduct that we expect all contributors to fol
 
 1. **Fork and Clone the Repository**
    ```bash
-   git clone https://github.com/your-username/tradingview-client.git
-   cd tradingview-client
+   git clone https://github.com/ch99q/twc.git
+   cd twc
    ```
 
 2. **Install Dependencies**

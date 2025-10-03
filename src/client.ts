@@ -3,9 +3,6 @@
  * Client for TradingView real-time data feeds
  */
 
-let EventEmitter: any;
-let WebSocketImpl: any;
-
 // EventEmitter implementation for cross-platform compatibility
 class UniversalEventEmitter {
   private events = new Map<string, Set<Function>>();
@@ -52,14 +49,6 @@ class UniversalEventEmitter {
   }
 }
 
-function getWebSocketClass(): typeof WebSocket {
-  if (typeof globalThis !== 'undefined' && 'WebSocket' in globalThis) {
-    return globalThis.WebSocket;
-  }
-  
-  return WebSocket;
-}
-
 const HOST = "wss://data.tradingview.com/socket.io/websocket?&type=chart";
 const PROHOST = "wss://prodata.tradingview.com/socket.io/websocket?&type=chart";
 
@@ -83,8 +72,8 @@ export class ProtocolError extends Error {
 
 export class CriticalError extends Error {
   chartId: string;
-  info: any;
-  constructor(chartId: string, message: string, info?: any) {
+  info: unknown;
+  constructor(chartId: string, message: string, info?: unknown) {
     super(`${message}${info ? ', ' + JSON.stringify(info) : ''}`);
     this.name = "CriticalError";
     this.chartId = chartId;
@@ -94,8 +83,8 @@ export class CriticalError extends Error {
 
 export class PayloadError extends Error {
   chartId: string;
-  params: any;
-  constructor(chartId: string, params: any) {
+  params: unknown;
+  constructor(chartId: string, params: unknown) {
     super(`Payload error for chart ${chartId}: ${JSON.stringify(params)}`);
     this.name = "PayloadError";
     this.chartId = chartId;
@@ -184,7 +173,7 @@ export async function createSession(token?: string, verbose?: boolean): Promise<
   const emitter = new UniversalEventEmitter();
 
   let closed = false;
-  let protocol: any = undefined;
+  let protocol: unknown = undefined;
   let interval: ReturnType<typeof setInterval> | undefined;
 
   let socket: WebSocket;
@@ -221,9 +210,10 @@ export async function createSession(token?: string, verbose?: boolean): Promise<
       resolve();
     };
 
-    const onError = (error: any) => {
+    const onError = (error: unknown) => {
       clearTimeout(timeout);
-      reject(new Error("WebSocket connection failed: " + (error?.message || String(error))));
+      const message = error instanceof Error ? error.message : String(error);
+      reject(new Error("WebSocket connection failed: " + message));
     };
 
     if (typeof (socket as any).on === 'function') {
@@ -235,12 +225,13 @@ export async function createSession(token?: string, verbose?: boolean): Promise<
     }
   });
 
-  const messageHandler = (event: any) => {
+  const messageHandler = (event: unknown) => {
     if (closed) return;
-    
-    const text = typeof event.data === 'string' ? event.data : 
-                 typeof event === 'string' ? event : 
-                 String(event.data || event);
+
+    const eventData = (event as { data?: unknown })?.data;
+    const text = typeof eventData === 'string' ? eventData :
+                 typeof event === 'string' ? event :
+                 String(eventData || event);
     
     const packets = text.split("~m~").filter(Boolean).reduce((acc: string[], packet: string, i: number) => {
       if (i % 2 === 0) acc.push("~m~" + packet);
@@ -281,7 +272,7 @@ export async function createSession(token?: string, verbose?: boolean): Promise<
     }
   };
 
-  const errorHandler = (error: any) => {
+  const errorHandler = (error: unknown) => {
     if (!closed) {
       emitter.emit("error", error);
     }
@@ -303,14 +294,14 @@ export async function createSession(token?: string, verbose?: boolean): Promise<
 
   // Wait for protocol negotiation
   await new Promise<void>((resolve, reject) => {
-    const onProtocol = (proto: any) => {
+    const onProtocol = (proto: unknown) => {
       protocol = proto;
       emitter.off("error", onError);
       resolve();
     };
-    const onError = (err: Error) => {
+    const onError = (err: unknown) => {
       emitter.off("protocol", onProtocol);
-      reject(err);
+      reject(err instanceof Error ? err : new Error(String(err)));
     };
     emitter.once("protocol", onProtocol);
     emitter.once("error", onError);
@@ -378,16 +369,16 @@ export type ResolveSymbol = {
     id: string;
     name: string;
     description: string;
-    [key: string]: any;
+    [key: string]: unknown;
   }
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 type SeriesCreated = {
   id: string;
   updateMode: string;
   turnaroundId: string;
-  info: Record<string, any>;
+  info: Record<string, unknown>;
 }
 
 type SeriesModified = SeriesCreated;
@@ -396,7 +387,7 @@ type StudyCreated = {
   id: string;
   seriesId: string;
   turnaroundId: string;
-  info: Record<string, any>;
+  info: Record<string, unknown>;
 }
 
 type StudyModified = StudyCreated;
@@ -431,12 +422,12 @@ export function request(
   event: string,
   payload: Message,
 ): Promise<any>;
-export function request(session: Session, event: string, payload: Message): Promise<any> {
+export function request(session: Session, event: string, payload: Message): Promise<unknown> {
   if (!RESULTING_EVENTS.includes(event as keyof EventType)) {
     throw new Error(`Invalid event type: ${event}. Expected one of: ${RESULTING_EVENTS.join(', ')}`);
   }
   return new Promise((resolve, reject) => {
-    const handleResponse = (response: { event: string, payload: any }) => {
+    const handleResponse = (response: { event: string, payload: unknown }) => {
       // Defensive: Both payloads must be arrays for all index access
       if (!Array.isArray(payload) || !Array.isArray(response.payload)) return;
 
@@ -494,7 +485,7 @@ export function request(session: Session, event: string, payload: Message): Prom
       session.removeListener('error', handleError);
     };
 
-    const handleError = (e: string, error: any) => {
+    const handleError = (e: string, error: unknown) => {
       // Defensive: Both payload and error must be arrays for all index access
       if (!Array.isArray(payload) || !Array.isArray(error)) return;
 
@@ -636,7 +627,7 @@ export function createSeries(
   count: number,
   range?: Range
 ): Promise<Series> {
-  let iteratorListener: (payload: any[]) => void;
+  let iteratorListener: (payload: unknown[]) => void;
   const timeseries: Record<string, number[][]> = {};
   const series: Series = {
     id: `series_${useId()}`,
@@ -669,9 +660,10 @@ export function createSeries(
           if (!nextRecord) {
             session.send("request_more_tickmarks", [chart.id, series.id, 1]);
             return new Promise(resolve => {
-              function listener(payload: any[]) {
-                if (payload[0] !== chart.id || typeof payload[1][series.id] === "undefined") return;
-                const data = (payload[1][series.id].s as any[]).map(i => i.v);
+              function listener(payload: unknown[]) {
+                if (!Array.isArray(payload) || payload[0] !== chart.id || typeof (payload[1] as Record<string, any>)?.[series.id] === "undefined") return;
+                const seriesData = (payload[1] as Record<string, any>)[series.id];
+                const data = (seriesData.s as Array<{ v: number[] }>).map(i => i.v);
                 series.history.push(...data);
                 series.history.sort((a, b) => a[0] - b[0]);
                 // Remove duplicates.
@@ -721,9 +713,10 @@ export function createSeries(
     });
   }
 
-  function timescale_update(payload: any[]) {
-    if (payload[0] !== chart.id || typeof payload[1][series.id] === "undefined") return;
-    const data = (payload[1][series.id].s as any[]).map(i => i.v);
+  function timescale_update(payload: unknown[]) {
+    if (!Array.isArray(payload) || payload[0] !== chart.id || typeof (payload[1] as Record<string, any>)?.[series.id] === "undefined") return;
+    const seriesData = (payload[1] as Record<string, any>)[series.id];
+    const data = (seriesData.s as Array<{ v: number[] }>).map(i => i.v);
     timeseries[series.timeframe] = timeseries[series.timeframe] || [];
     timeseries[series.timeframe] = timeseries[series.timeframe].concat(data);
     // Sort the history by timestamp
@@ -733,9 +726,9 @@ export function createSeries(
     refreshHistory();
   }
 
-  function series_timeframe(payload: any[]) {
-    if (payload[0] !== chart.id || payload[1] !== series.id) return;
-    const range = parse(payload[5]);
+  function series_timeframe(payload: unknown[]) {
+    if (!Array.isArray(payload) || payload[0] !== chart.id || payload[1] !== series.id) return;
+    const range = parse(payload[5] as Range);
     series.scope = {
       from: range[0],
       to: range[1]
@@ -743,8 +736,8 @@ export function createSeries(
     refreshHistory();
   }
 
-  function error_handler(e: string, error: any[]) {
-    if (!['series_error', 'chart_deleted'].includes(e)) return;
+  function error_handler(e: string, error: unknown) {
+    if (!Array.isArray(error) || !['series_error', 'chart_deleted'].includes(e)) return;
     if (e === 'series_error' && (error[0] !== chart.id || error[1] !== series.id)) return;
     if (e === 'chart_deleted' && error[0] !== chart.id) return;
     cleanup();
@@ -795,9 +788,9 @@ export interface Indicator {
     text: string;
     pineId?: string;
     pineVersion?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   },
-  parameters?: Array<Input> | Record<string, any>;
+  parameters?: Array<Input> | Record<string, unknown>;
 }
 
 export interface Study {
@@ -808,14 +801,14 @@ export interface Study {
     v: number;
     f: boolean;
     t: string;
-  }> | Record<string, any>) => Promise<Study>;
+  }> | Record<string, unknown>) => Promise<Study>;
   close(): Promise<void>;
   stream(): AsyncIterableIterator<number[]>;
   [Symbol.iterator](): IterableIterator<number[]>;
 }
 
 export function createStudy(session: Session, chart: Chart, series: Series, indicator: Indicator): Promise<Study> {
-  let iteratorListener: (payload: any[]) => void;
+  let iteratorListener: (payload: unknown[]) => void;
   const timeseries: Record<string, number[][]> = {};
   const study: Study = {
     id: `study_${useId()}`,
@@ -823,9 +816,9 @@ export function createStudy(session: Session, chart: Chart, series: Series, indi
     history: [],
     modify(options) {
       const parameters = Array.isArray(options) ? options.reduce((acc, param, index) => {
-        acc[`in_${index}`] = { v: param.value, f: true, t: param.type }
+        acc[`in_${index}`] = { v: (param as any).value, f: true, t: (param as any).type }
         return acc;
-      }, {}) : options;
+      }, {} as Record<string, unknown>) : options;
 
       return request(session, 'modify_study', [
         chart.id,
@@ -847,9 +840,10 @@ export function createStudy(session: Session, chart: Chart, series: Series, indi
           if (!nextRecord) {
             session.send("request_more_tickmarks", [chart.id, series.id, 1]);
             return new Promise(resolve => {
-              function listener(payload: any[]) {
-                if (payload[0] !== chart.id || typeof payload[1][study.id] === "undefined") return;
-                const data = (payload[1][study.id].st as any[]).map(i => i.v);
+              function listener(payload: unknown[]) {
+                if (!Array.isArray(payload) || payload[0] !== chart.id || typeof (payload[1] as Record<string, any>)?.[study.id] === "undefined") return;
+                const studyData = (payload[1] as Record<string, any>)[study.id];
+                const data = (studyData.st as Array<{ v: number[] }>).map(i => i.v);
                 study.history.push(...data);
                 study.history.sort((a, b) => a[0] - b[0]);
                 // Remove duplicates.
@@ -907,9 +901,10 @@ export function createStudy(session: Session, chart: Chart, series: Series, indi
     });
   }
 
-  function timescale_update(payload: any[]) {
-    if (payload[0] !== chart.id || typeof payload[1][study.id] === "undefined") return;
-    const data = (payload[1][study.id].st as any[]).map(i => i.v);
+  function timescale_update(payload: unknown[]) {
+    if (!Array.isArray(payload) || payload[0] !== chart.id || typeof (payload[1] as Record<string, any>)?.[study.id] === "undefined") return;
+    const studyData = (payload[1] as Record<string, any>)[study.id];
+    const data = (studyData.st as Array<{ v: number[] }>).map(i => i.v);
     timeseries[series.timeframe] = timeseries[series.timeframe] || [];
     timeseries[series.timeframe] = timeseries[series.timeframe].concat(data);
     // Sort the history by timestamp
@@ -919,8 +914,8 @@ export function createStudy(session: Session, chart: Chart, series: Series, indi
     refreshHistory();
   }
 
-  function error_handler(e: string, error: any[]) {
-    if (!['study_error', 'series_deleted', 'chart_deleted'].includes(e)) return;
+  function error_handler(e: string, error: unknown) {
+    if (!Array.isArray(error) || !['study_error', 'series_deleted', 'chart_deleted'].includes(e)) return;
     if (e === 'study_error' && (error[0] !== chart.id || error[1] !== study.id)) return;
     if (e === 'chart_deleted' && error[0] !== chart.id) return;
     if (e === 'series_deleted' && error[0] !== chart.id && error[1] !== series.id) return;
@@ -944,7 +939,7 @@ export function createStudy(session: Session, chart: Chart, series: Series, indi
   const parameters = Array.isArray(indicator.parameters) ? indicator.parameters.reduce((acc, param, index) => {
     acc[`in_${index}`] = { v: param.value, f: true, t: param.type }
     return acc;
-  }, {}) : indicator.parameters;
+  }, {} as Record<string, unknown>) : indicator.parameters;
 
   return request(session, 'create_study', [
     chart.id,
@@ -956,7 +951,7 @@ export function createStudy(session: Session, chart: Chart, series: Series, indi
   ]).then(() => study);
 }
 
-export function createScript(session: Session, chart: Chart, series: Series, script: string, parameters: Input[] = [], metadata: Record<string, any> = {}): Promise<Study> {
+export function createScript(session: Session, chart: Chart, series: Series, script: string, parameters: Input[] = [], metadata: Record<string, unknown> = {}): Promise<Study> {
   return createStudy(session, chart, series, {
     id: "Script@tv-scripting-101!",
     metadata: {
@@ -983,15 +978,17 @@ export function createQuote(session: Session, symbol: string, exchange: string):
   }
 
   return new Promise((resolve, reject) => {
-    function data_handler(payload: any[]) {
-      if (payload[0] !== quote.id || payload[1]?.n !== `${exchange}:${symbol}`) return;
-      if (payload[1]?.s === "error") {
-        reject(new Error(`Quote error for ${symbol} on ${exchange}: ${payload[1].errmsg}`));
+    function data_handler(payload: unknown[]) {
+      if (!Array.isArray(payload) || payload[0] !== quote.id) return;
+      const data = payload[1] as { n?: string, s?: string, errmsg?: string, v?: any };
+      if (data?.n !== `${exchange}:${symbol}`) return;
+      if (data?.s === "error") {
+        reject(new Error(`Quote error for ${symbol} on ${exchange}: ${data.errmsg}`));
         cleanup();
       };
-      if (!payload[1]?.v.fiscal_period_end_fy_h) return; // Skip if it's just an ask/bid update
+      if (!data?.v?.fiscal_period_end_fy_h) return; // Skip if it's just an ask/bid update
 
-      const v = payload[1].v;
+      const v = data.v;
 
       delete v.revenues_fy_h;
       delete v.earnings_fy_h;
@@ -1006,22 +1003,22 @@ export function createQuote(session: Session, symbol: string, exchange: string):
         // Assume data is most recent first; reverse to match ascending fiscal years
         const years = [...fiscalLabels].reverse();
 
-        const fieldValues: Record<string, any[]> = {};
+        const fieldValues: Record<string, unknown[]> = {};
         for (const key of keys) {
           const values = v[key];
           fieldValues[key] = Array.isArray(values) ? [...values].reverse() : [];
         }
 
         for (let i = 0; i < years.length; i++) {
-          const entry: Record<string, any> = { date: years[i], symbol };
+          const entry: Record<string, unknown> = { date: years[i], symbol };
           for (const key of keys) {
             const cleanKey = key.replace(/_fy_h$/, "");
             const values = fieldValues[key];
             if (i < values.length) entry[cleanKey] = values[i];
           }
           entry.type = "annual";
-          entry.date = new Date(entry.date * 1000).toISOString().split('T')[0]; // Format date to YYYY-MM-DD
-          quote.reports.push(entry as Report);
+          entry.date = new Date((entry.date as number) * 1000).toISOString().split('T')[0]; // Format date to YYYY-MM-DD
+          quote.reports.push(entry as unknown as Report);
         }
       }
 
@@ -1031,21 +1028,21 @@ export function createQuote(session: Session, symbol: string, exchange: string):
         const keys = Object.keys(v).filter(k => k.endsWith("_fq_h"));
 
         const quarters = [...fiscalLabels].reverse();
-        const fieldValues: Record<string, any[]> = {};
+        const fieldValues: Record<string, unknown[]> = {};
         for (const key of keys) {
           const values = v[key];
           fieldValues[key] = Array.isArray(values) ? [...values].reverse() : [];
         }
 
         for (let i = 0; i < quarters.length; i++) {
-          const entry: Record<string, any> = { date: quarters[i], symbol };
+          const entry: Record<string, unknown> = { date: quarters[i], symbol };
           for (const key of keys) {
             const cleanKey = key.replace(/_fq_h$/, "");
             const values = fieldValues[key];
             if (i < values.length) entry[cleanKey] = values[i];
           }
           entry.type = "quarterly";
-          quote.reports.push(entry as Report);
+          quote.reports.push(entry as unknown as Report);
         }
       }
 
