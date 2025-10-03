@@ -2,6 +2,7 @@ import { test, expect } from "vitest";
 import { createSession, createChart, createSeries } from "../src/client.ts";
 import type { Session, Chart, ResolveSymbol } from "../src/client.ts";
 import { createPresetStudy } from "../src/studies/std.ts";
+import { volumeStudy } from "../src/studies";
 
 // Test configuration constants
 const TEST_SYMBOL = "BTCUSDT";
@@ -13,7 +14,7 @@ const TEST_BAR_COUNT = 10;
  * Helper function to create a test session with consistent configuration
  */
 async function createTestSession(verbose = false): Promise<Session> {
-  return await createSession(undefined, verbose);
+  return await createSession(process.env.TV_TOKEN, verbose);
 }
 
 /**
@@ -254,6 +255,41 @@ test("Data iteration - provides synchronous access to historical data", async ()
     expect(iterationCount > 0, "Iterator should yield at least one data point").toBe(true);
 
     // TODO: Fix stream() method promise resolution issues
+
+    await series.close();
+    chart.close();
+  } finally {
+    await session.close();
+  }
+});
+
+test("Stream handling - provides asynchronous access to real-time data", async () => {
+  const session = await createTestSession();
+
+  try {
+    const { chart, symbol } = await setupChartWithSymbol(session);
+    
+    const series = await createSeries(session, chart, symbol, "5S", 1);
+
+    const volume = await volumeStudy(session, chart, series);
+
+    for await (const update of series.stream()) {
+      const [time, open, high, low, close] = update;
+
+      // We don't get volume in the main update array, so we pull it from the volume study's latest history.
+      const vol = volume.history[volume.history.length - 1]?.[3] || 0;
+
+      expect(typeof time === "number", "Stream update should include timestamp").toBe(true);
+      expect(typeof open === "number", "Stream update should include open price").toBe(true);
+      expect(typeof high === "number", "Stream update should include high price").toBe(true);
+      expect(typeof low === "number", "Stream update should include low price").toBe(true);
+      expect(typeof close === "number", "Stream update should include close price").toBe(true);
+      expect(typeof vol === "number", "Stream update should include volume").toBe(true);
+
+      expect(high >= low, "High price should be greater than or equal to low price").toBe(true);
+      expect(vol > 0, "Volume should be greater than zero in active markets").toBe(true);
+      break;
+    }
 
     await series.close();
     chart.close();
