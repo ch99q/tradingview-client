@@ -3,7 +3,8 @@
  * Client for TradingView real-time data feeds
  */
 
-// EventEmitter implementation for cross-platform compatibility
+import WebSocket from "isomorphic-ws";
+
 class UniversalEventEmitter {
   private events = new Map<string, Set<Function>>();
   
@@ -139,36 +140,6 @@ export class StudyError extends Error {
   }
 }
 
-function createWebSocket(url: string, options?: { headers?: Record<string, string> }): WebSocket {
-  // Detect browser vs server environment
-  const isBrowser = typeof globalThis !== 'undefined' && 
-                   typeof (globalThis as any).window !== 'undefined' && 
-                   typeof (globalThis as any).document !== 'undefined';
-  
-  if (isBrowser) {
-    return new globalThis.WebSocket(url);
-  } else {
-    // Use ws package for server environments
-    try {
-      const WebSocketNode = require('ws');
-      return new WebSocketNode(url, {
-        headers: {
-          "Origin": "https://www.tradingview.com",
-          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-          "Cache-Control": "no-cache",
-          "Pragma": "no-cache",
-          ...options?.headers
-        },
-        followRedirects: true
-      });
-    } catch (error) {
-      throw new Error(
-        "WebSocket implementation not found. In Node.js/Bun environment, please install 'ws' package: npm install ws @types/ws"
-      );
-    }
-  }
-}
-
 export async function createSession(token?: string, verbose?: boolean): Promise<Session> {
   const emitter = new UniversalEventEmitter();
 
@@ -178,7 +149,15 @@ export async function createSession(token?: string, verbose?: boolean): Promise<
 
   let socket: WebSocket;
   try {
-    socket = createWebSocket(token ? PROHOST : HOST);
+    socket = new WebSocket(token ? PROHOST : HOST, {
+      headers: {
+          "Origin": "https://www.tradingview.com",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          "Cache-Control": "no-cache",
+          "Pragma": "no-cache",
+      },
+      followRedirects: true
+    });
   } catch (err) {
     throw new Error("WebSocket creation failed: " + (err instanceof Error ? err.message : String(err)));
   }

@@ -6,8 +6,9 @@ export default defineConfig({
   dts: true,
   clean: true,
   outDir: './dist',
-  platform: 'node',
-  target: 'node18',
+  platform: 'browser',
+  target: 'esnext',
   minify: false,
   sourcemap: true,
+  noExternal: ['isomorphic-ws'],
 })

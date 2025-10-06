@@ -55,6 +55,7 @@
   },
   "packageManager": "bun@1.2.23",
   "dependencies": {
+    "isomorphic-ws": "^5.0.0",
     "ws": "^8.18.3"
   }
 }
