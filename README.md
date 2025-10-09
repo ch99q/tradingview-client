@@ -77,11 +77,11 @@ import { createScreener } from "@ch99q/twc";
 
 // Create a screener for US markets
 const screener = createScreener("america")
-  .columns(["name", "close", "change", "volume", "market_cap_basic"])
+  .select("name", "close", "change", "volume", "market_cap_basic")
   .where("market_cap_basic").gt(1000000000) // Market cap > $1B
   .where("volume").gt(1000000) // Volume > 1M
   .where("change").gt(0) // Positive change
-  .sortBy("volume", "desc")
+  .orderBy("volume", "desc")
   .limit(50);
 
 // Execute the screen
@@ -96,14 +96,13 @@ results.data.forEach(stock => {
 ### Technical Indicators
 
 ```typescript
-import { createStudy } from "@ch99q/twc";
-import { RSI, MACD } from "@ch99q/twc/studies";
+import { rsiStudy, macdStudy } from "@ch99q/twc/studies";
 
 // Add RSI indicator
-const rsi = await createStudy(session, chart, series, RSI(14));
+const rsi = await rsiStudy(session, chart, series, 14);
 
-// Add MACD indicator  
-const macd = await createStudy(session, chart, series, MACD(12, 26, 9));
+// Add MACD indicator
+const macd = await macdStudy(session, chart, series, 12, 26, "close", 9);
 
 // Access indicator values
 console.log("Current RSI:", rsi.history[rsi.history.length - 1]);
@@ -214,23 +213,21 @@ const series = await createSeries(session, chart, symbol, "1D", 0, "YTD");
 
 ### Studies & Indicators
 
-#### `createStudy(session, chart, series, indicator)`
-
-Adds a technical indicator to a series.
+Study functions create and attach technical indicators to a series. All study functions follow the pattern: `studyName(session, chart, series, ...parameters)`.
 
 ```typescript
-import { RSI, SMA, EMA, MACD, BollingerBands } from "@ch99q/twc/studies";
+import { rsiStudy, smaStudy, emaStudy, macdStudy, bollingerBandsStudy } from "@ch99q/twc/studies";
 
 // Moving averages
-const sma20 = await createStudy(session, chart, series, SMA(20));
-const ema50 = await createStudy(session, chart, series, EMA(50));
+const sma20 = await smaStudy(session, chart, series, 20);
+const ema50 = await emaStudy(session, chart, series, 50);
 
 // Oscillators
-const rsi = await createStudy(session, chart, series, RSI(14));
-const macd = await createStudy(session, chart, series, MACD(12, 26, 9));
+const rsi = await rsiStudy(session, chart, series, 14);
+const macd = await macdStudy(session, chart, series, 12, 26, "close", 9);
 
 // Bands
-const bb = await createStudy(session, chart, series, BollingerBands(20, 2));
+const bb = await bollingerBandsStudy(session, chart, series, 20, "close", 2.0);
 ```
 
 ### Financial Quotes
@@ -321,25 +318,25 @@ Creates a new screener instance for the specified markets.
 ```typescript
 const screener = createScreener("america", "europe")
   // Select columns to return
-  .columns(["name", "close", "change", "volume"])
-  
+  .select("name", "close", "change", "volume")
+
   // Add filters
   .where("market_cap_basic").gte(1000000000)
   .where("volume").between(100000, 50000000)
   .where("sector").in(["Technology", "Healthcare"])
-  
+
   // Combine filters with AND/OR
-  .and(builder => 
+  .and(builder =>
     builder.where("price_earnings_ttm").lt(20)
            .where("debt_to_equity_fq").lt(0.5)
   )
-  
+
   // Sort results
-  .sortBy("market_cap_basic", "desc")
-  
+  .orderBy("market_cap_basic", "desc")
+
   // Limit results
   .limit(100)
-  
+
   // Execute the screen
   .execute();
 ```
@@ -479,31 +476,31 @@ import { createScreener } from "@ch99q/twc";
 
 // Find growth stocks with strong fundamentals
 const growthScreener = createScreener("america")
-  .columns([
-    "name", "sector", "close", "market_cap_basic", 
+  .select(
+    "name", "sector", "close", "market_cap_basic",
     "price_earnings_ttm", "revenue_growth_ttm_yoy",
     "earnings_growth_ttm_yoy", "debt_to_equity_fq"
-  ])
+  )
   .where("market_cap_basic").between(1e9, 100e9) // $1B - $100B
   .where("revenue_growth_ttm_yoy").gt(0.15) // 15%+ revenue growth
-  .where("earnings_growth_ttm_yoy").gt(0.20) // 20%+ earnings growth  
+  .where("earnings_growth_ttm_yoy").gt(0.20) // 20%+ earnings growth
   .where("price_earnings_ttm").between(10, 30) // Reasonable P/E
   .where("debt_to_equity_fq").lt(0.4) // Low debt
-  .sortBy("revenue_growth_ttm_yoy", "desc")
+  .orderBy("revenue_growth_ttm_yoy", "desc")
   .limit(25);
 
 const results = await growthScreener.execute();
 
 // Find dividend aristocrats
 const dividendScreener = createScreener("america")
-  .columns([
+  .select(
     "name", "sector", "dividend_yield_recent",
     "dividend_payout_ratio_ttm", "dividend_growth_5y"
-  ])
+  )
   .where("dividend_yield_recent").between(0.02, 0.08) // 2-8% yield
   .where("dividend_payout_ratio_ttm").lt(0.7) // Sustainable payout
   .where("dividend_growth_5y").gt(0.05) // Growing dividends
-  .sortBy("dividend_yield_recent", "desc");
+  .orderBy("dividend_yield_recent", "desc");
 
 const dividendStocks = await dividendScreener.execute();
 ```
@@ -511,29 +508,29 @@ const dividendStocks = await dividendScreener.execute();
 ### Real-time Monitoring
 
 ```typescript
-import { createSession, createChart, createSeries, createStudy } from "@ch99q/twc";
-import { RSI, MACD } from "@ch99q/twc/studies";
+import { createSession, createChart, createSeries } from "@ch99q/twc";
+import { rsiStudy, macdStudy } from "@ch99q/twc/studies";
 
 async function monitorStock(symbol: string, exchange: string) {
   const session = await createSession();
   const chart = await createChart(session);
   const resolvedSymbol = await chart.resolve(symbol, exchange);
-  
+
   // Create 1-minute series
   const series = await createSeries(session, chart, resolvedSymbol, "1", 100);
-  
+
   // Add indicators
-  const rsi = await createStudy(session, chart, series, RSI(14));
-  const macd = await createStudy(session, chart, series, MACD(12, 26, 9));
-  
+  const rsi = await rsiStudy(session, chart, series, 14);
+  const macd = await macdStudy(session, chart, series, 12, 26, "close", 9);
+
   console.log(`Monitoring ${symbol}...`);
-  
+
   // Stream updates
   for await (const update of series.stream()) {
     const [timestamp, open, high, low, close, volume] = update;
     const currentRSI = rsi.history[rsi.history.length - 1];
     const currentMACD = macd.history[macd.history.length - 1];
-    
+
     console.log({
       time: new Date(timestamp * 1000),
       price: close,
@@ -541,7 +538,7 @@ async function monitorStock(symbol: string, exchange: string) {
       rsi: currentRSI?.[1],
       macd: currentMACD?.[1]
     });
-    
+
     // Alert conditions
     if (currentRSI?.[1] > 70) {
       console.log("🔴 OVERBOUGHT: RSI > 70");
